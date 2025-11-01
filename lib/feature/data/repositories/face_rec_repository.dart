@@ -52,17 +52,17 @@ class FaceRecRepository {
       }
       if (faceImages.isNotEmpty) {
         final last = faceImages.last;
-        final upright =
-            (last.width > last.height) ? rotate90Compat(last, times: 1) : last;
-        final avatarJpg = img.encodeJpg(upright, quality: 85);
+        final landscape =
+            (last.height > last.width) ? rotate90Compat(last, times: 1) : last;
+
+        final avatarJpg = img.encodeJpg(landscape, quality: 85);
         await db.updateUserAvatarBytes(
           upsertedId,
           Uint8List.fromList(avatarJpg),
         );
-        print(
-          '[Repo][Enroll] avatar saved (upright portrait) for userId=$upsertedId',
-        );
+        print('[Repo][Enroll] avatar saved (landscape) for userId=$upsertedId');
       }
+
       print('[Repo][Enroll] completed for userId=$upsertedId');
       return upsertedId;
     } catch (e, st) {
@@ -80,39 +80,35 @@ class FaceRecRepository {
   Future<List<RecognizedFace>> recognizeFromImageBytes(
     Uint8List imageBytes, {
     double minCosine = 0.75,
+    double margin = 0.07,
   }) async {
     final decoded = img.decodeImage(imageBytes);
     if (decoded == null) {
-      print('[Repo][Recognize][ERROR] decodeImage null');
       return [];
     }
     final faces = await ml.detectFacesFromBytes(imageBytes);
-    print('[Repo][Recognize] faces=${faces.length}');
     if (faces.isEmpty) return [];
     final rows = await db.getAllUserVectors();
     if (rows.isEmpty) {
-      print('[Repo][Recognize] DB empty');
       return [];
     }
     final Map<int, UserVecs> gallery = {};
     for (final r in rows) {
-      final user = r.user;
-      final fv = r.vector;
-      final u8 = fv.vector;
+      final u8 = r.vector.vector;
       final vec = u8.buffer.asFloat32List(
         u8.offsetInBytes,
         u8.lengthInBytes ~/ 4,
       );
       gallery
-          .putIfAbsent(user.id, () => UserVecs(user.id, user.name, []))
+          .putIfAbsent(r.user.id, () => UserVecs(r.user.id, r.user.name, []))
           .vecs
           .add(vec);
     }
-    print('[Repo][Recognize] gallery users=${gallery.length}');
     final results = <RecognizedFace>[];
     for (final f in faces) {
       final crop = ml.cropToFace(decoded, f, padding: 0.2);
-      final probe = desc.imageToDescriptor(crop);
+      final square = img.copyResizeCropSquare(crop, 256);
+      final probe = desc.imageToDescriptor(square);
       String? bestName;
       int? bestUserId;
       double bestScore = -1;
@@ -130,12 +126,12 @@ class FaceRecRepository {
           bestUserId = g.userId;
         }
       }
-      final top3 =
+      final sorted =
           scored.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      print(
-        '[Match][Top] ${top3.take(3).map((e) => '${e.key}=${e.value.toStringAsFixed(3)}').join(', ')}',
-      );
-      if (bestScore >= minCosine && bestName != null && bestUserId != null) {
+      final secondBest = (sorted.length >= 2) ? sorted[1].value : -1;
+      final pass =
+          (bestScore >= minCosine) && (bestScore - secondBest >= margin);
+      if (pass && bestName != null && bestUserId != null) {
         results.add(
           RecognizedFace(
             userId: bestUserId,
@@ -144,11 +140,6 @@ class FaceRecRepository {
             box: f.boundingBox,
           ),
         );
-        print(
-          '[Match][Result] MATCH $bestName (${(bestScore * 100).toStringAsFixed(0)}%)',
-        );
-      } else {
-        print('[Match][Result] no match (best=$bestScore)');
       }
     }
     return results;
@@ -157,34 +148,31 @@ class FaceRecRepository {
   Future<List<RecognizedFace>> recognizeFromDecodedAndFaces(
     img.Image decoded,
     List<Face> faces, {
-    double minCosine = 0.80,
+    double minCosine = 0.88,
+    double margin = 0.08,
   }) async {
-    print('[Repo][RecognizeDecoded] faces=${faces.length}');
     if (faces.isEmpty) return [];
     final rows = await db.getAllUserVectors();
     if (rows.isEmpty) {
-      print('[Repo][RecognizeDecoded] DB empty');
       return [];
     }
     final Map<int, UserVecs> gallery = {};
     for (final r in rows) {
-      final user = r.user;
-      final fv = r.vector;
-      final u8 = fv.vector;
+      final u8 = r.vector.vector;
       final vec = u8.buffer.asFloat32List(
         u8.offsetInBytes,
         u8.lengthInBytes ~/ 4,
       );
       gallery
-          .putIfAbsent(user.id, () => UserVecs(user.id, user.name, []))
+          .putIfAbsent(r.user.id, () => UserVecs(r.user.id, r.user.name, []))
           .vecs
           .add(vec);
     }
-    print('[Repo][RecognizeDecoded] gallery users=${gallery.length}');
     final results = <RecognizedFace>[];
     for (final f in faces) {
       final crop = ml.cropToFace(decoded, f, padding: 0.2);
-      final probe = desc.imageToDescriptor(crop);
+      final square = img.copyResizeCropSquare(crop, 256);
+      final probe = desc.imageToDescriptor(square);
       String? bestName;
       int? bestUserId;
       double bestScore = -1;
@@ -202,12 +190,12 @@ class FaceRecRepository {
           bestUserId = g.userId;
         }
       }
-      final top3 =
+      final sorted =
           scored.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      print(
-        '[Match][Top] ${top3.take(3).map((e) => '${e.key}=${e.value.toStringAsFixed(3)}').join(', ')}',
-      );
-      if (bestScore >= minCosine && bestName != null && bestUserId != null) {
+      final secondBest = (sorted.length >= 2) ? sorted[1].value : -1;
+      final pass =
+          (bestScore >= minCosine) && (bestScore - secondBest >= margin);
+      if (pass && bestName != null && bestUserId != null) {
         results.add(
           RecognizedFace(
             userId: bestUserId,
@@ -216,11 +204,6 @@ class FaceRecRepository {
             box: f.boundingBox,
           ),
         );
-        print(
-          '[Match][Result] MATCH $bestName (${(bestScore * 100).toStringAsFixed(0)}%)',
-        );
-      } else {
-        print('[Match][Result] no match (best=$bestScore)');
       }
     }
     return results;

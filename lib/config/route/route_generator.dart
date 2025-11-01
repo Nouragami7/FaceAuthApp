@@ -1,5 +1,6 @@
 import 'package:face_recognition_app/feature/presentation/cubit/enroll/enroll_cubit.dart';
 import 'package:face_recognition_app/feature/presentation/cubit/live/live_rec_cubit.dart';
+import 'package:face_recognition_app/feature/presentation/screen/fullscreen_capture_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:face_recognition_app/config/route/routes.dart';
@@ -23,13 +24,16 @@ class RouteGenerator {
             );
           },
         );
-     case AppRoutes.recognize:
-  return MaterialPageRoute(
-    builder: (_) => BlocProvider(
-      create: (_) => LiveRecCubit()..initCamera(),
-      child: const LiveRecognitionPage(),
-    ),
-  );
+      case AppRoutes.recognize:
+        return MaterialPageRoute(
+          builder:
+              (_) => BlocProvider(
+                create: (_) => LiveRecCubit()..initCamera(),
+                child: const LiveRecognitionPage(),
+              ),
+        );
+      case AppRoutes.capture:
+        return MaterialPageRoute(builder: (_) => const FullscreenCapturePage());
 
       default:
         return MaterialPageRoute(

@@ -22,7 +22,7 @@ class LiveRecState extends Equatable {
     this.matches = const [],
     this.lastRotation,
     this.error,
-    this.minCosine = 0.68,
+    this.minCosine = 0.88,
   });
 
   LiveRecState copyWith({

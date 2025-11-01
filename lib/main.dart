@@ -6,7 +6,7 @@ import 'package:face_recognition_app/core/database/app_database.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final appDb = AppDatabase(); // أنشئي قاعدة البيانات هنا
+  final appDb = AppDatabase();
   runApp(MyApp(appDb: appDb));
 }
 
@@ -17,14 +17,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RepositoryProvider.value(
-      value: appDb, // نوفّر الـ db لكل أجزاء التطبيق
+      value: appDb,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Face Recognition App',
-        theme: ThemeData(
-          colorSchemeSeed: Colors.indigo,
-          useMaterial3: true,
-        ),
+        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
         initialRoute: AppRoutes.home,
         onGenerateRoute: RouteGenerator.generateRoute,
       ),
