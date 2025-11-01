@@ -56,11 +56,3 @@ A Flutter-based face recognition app that enables users to enroll, recognize, up
 * **Face Detection:** Google ML Kit
 * **Image Processing:** `package:image`
 
-
-## Recent Updates
-
-* Added re-enroll flow to update existing users’ photos and vectors.
-* Added SnackBar alert for “No face detected”.
-* Enabled back navigation in fullscreen camera.
-* Improved UI/UX for Enroll and Home screens.
-* Enhanced database logic for replacing and validating user data.
