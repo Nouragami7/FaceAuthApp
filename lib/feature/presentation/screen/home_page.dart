@@ -118,7 +118,10 @@ class _ActionsBar extends StatelessWidget {
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  final ok = await Navigator.pushNamed(context, AppRoutes.enroll);
+                  final ok = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.enroll,
+                  );
                   if (ok == true && context.mounted) {
                     context.read<UsersCubit>().load();
                   }

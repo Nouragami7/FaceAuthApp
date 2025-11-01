@@ -56,8 +56,9 @@ class _FullscreenCapturePageState extends State<FullscreenCapturePage> {
         return;
       }
       final baked = img.bakeOrientation(raw);
-      final upright = baked.height > baked.width ? img.copyRotate(baked, 90) : baked;
-      faces.sort((a,b){
+      final upright =
+          baked.height > baked.width ? img.copyRotate(baked, 90) : baked;
+      faces.sort((a, b) {
         final sa = a.boundingBox.width * a.boundingBox.height;
         final sb = b.boundingBox.width * b.boundingBox.height;
         return sb.compareTo(sa);
@@ -78,7 +79,7 @@ class _FullscreenCapturePageState extends State<FullscreenCapturePage> {
   }
 
   Future<bool> _onWillPop() async {
-    return _faces.length >= _target;
+    return true;
   }
 
   @override
@@ -98,7 +99,8 @@ class _FullscreenCapturePageState extends State<FullscreenCapturePage> {
         body: SafeArea(
           child: Stack(
             children: [
-              if (cam != null && _ready) Positioned.fill(child: CameraPreview(cam)),
+              if (cam != null && _ready)
+                Positioned.fill(child: CameraPreview(cam)),
               Positioned(
                 left: 16,
                 right: 16,
@@ -108,16 +110,24 @@ class _FullscreenCapturePageState extends State<FullscreenCapturePage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _busy ? null : _capture,
-                        child: Text(_busy ? 'Capturing...' : 'Capture ${_faces.length}/$_target'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        child: Text(
+                          _busy
+                              ? 'Capturing...'
+                              : 'Capture ${_faces.length}/$_target',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: FilledButton(
                         onPressed: canFinish ? _done : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
                         child: const Text('Done'),
-                        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                       ),
                     ),
                   ],

@@ -37,29 +37,45 @@ class _EnrollPageState extends State<EnrollPage> {
     }
   }
 
-  Future<void> _onSave() async {
-    if (!_formKey.currentState!.validate()) return;
-    final userId = int.parse(_idCtrl.text.trim());
-    final name = _nameCtrl.text.trim();
-    final facesCount = context.read<EnrollCubit>().state.faces.length;
-    if (facesCount < 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please capture 5 face images first')),
-      );
-      return;
-    }
-    final id = await context.read<EnrollCubit>().saveUser(
-      userId: userId,
-      name: name,
+ Future<void> _onSave() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  final userId = int.parse(_idCtrl.text.trim());
+  final name = _nameCtrl.text.trim();
+  final facesCount = context.read<EnrollCubit>().state.faces.length;
+
+  final db = context.read<EnrollCubit>().db;
+  final existing = await db.getAllUsers();
+  final exists = existing.any((u) => u.id == userId);
+
+  if (exists) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('User ID $userId already exists — please use another ID.')),
     );
-    if (!mounted) return;
-    if (id != null) {
-      _formKey.currentState!.reset();
-      _nameCtrl.clear();
-      _idCtrl.clear();
-      Navigator.pop(context, true);
-    }
+    return;
   }
+
+  if (facesCount < 5) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please capture 5 face images first')),
+    );
+    return;
+  }
+
+  final id = await context.read<EnrollCubit>().saveUser(
+    userId: userId,
+    name: name,
+  );
+
+  if (!mounted) return;
+  if (id != null) {
+    _formKey.currentState!.reset();
+    _nameCtrl.clear();
+    _idCtrl.clear();
+    Navigator.pop(context, true);
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
