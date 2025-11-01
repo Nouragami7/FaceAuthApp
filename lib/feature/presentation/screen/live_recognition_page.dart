@@ -25,8 +25,8 @@ class LiveRecognitionPage extends StatelessWidget {
           return LayoutBuilder(
             builder: (ctx, cons) {
               final widgetSize = Size(cons.maxWidth, cons.maxHeight);
-              final isFront = cam.description.lensDirection == CameraLensDirection.front;
-
+              final isFront =
+                  cam.description.lensDirection == CameraLensDirection.front;
               final imgSize = state.imageSize;
               final faces = state.faces;
 
@@ -53,20 +53,24 @@ class LiveRecognitionPage extends StatelessWidget {
                   imageSize: imgSize,
                   widgetSize: widgetSize,
                   mirror: isFront,
-                  rotation: state.lastRotation ?? InputImageRotation.rotation0deg,
+                  rotation:
+                      state.lastRotation ?? InputImageRotation.rotation0deg,
                 );
 
                 const textHeight = 20.0;
-                final labelTop = (rect.top - (textHeight + 8) < 0)
-                    ? rect.top + 4
-                    : rect.top - (textHeight + 8);
+                final labelTop =
+                    (rect.top - (textHeight + 8) < 0)
+                        ? rect.top + 4
+                        : rect.top - (textHeight + 8);
 
-                drawItems.add(_DrawItem(
-                  rect: rect,
-                  label: label,
-                  labelTop: labelTop,
-                  isKnown: isKnown,
-                ));
+                drawItems.add(
+                  _DrawItem(
+                    rect: rect,
+                    label: label,
+                    labelTop: labelTop,
+                    isKnown: isKnown,
+                  ),
+                );
               }
 
               return Stack(
@@ -103,8 +107,14 @@ class _FacePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final boxPaintKnown = Paint()..style = PaintingStyle.stroke..strokeWidth = 3;
-    final boxPaintUnknown = Paint()..style = PaintingStyle.stroke..strokeWidth = 3;
+    final boxPaintKnown =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3;
+    final boxPaintUnknown =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3;
 
     for (final it in items) {
       final p = it.isKnown ? boxPaintKnown : boxPaintUnknown;
@@ -115,7 +125,11 @@ class _FacePainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: it.label,
-          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -128,14 +142,19 @@ class _FacePainter extends CustomPainter {
         tp.height + 8,
       );
 
-      final bgPaint = Paint()
-        ..color = (it.isKnown ? Colors.green : Colors.red).withOpacity(0.7);
+      final bgPaint =
+          Paint()
+            ..color = (it.isKnown ? Colors.green : Colors.red).withOpacity(0.7);
 
-      canvas.drawRRect(RRect.fromRectAndRadius(bgRect, const Radius.circular(6)), bgPaint);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bgRect, const Radius.circular(6)),
+        bgPaint,
+      );
       tp.paint(canvas, Offset(bgRect.left + padding, bgRect.top + 4));
     }
   }
 
   @override
-  bool shouldRepaint(covariant _FacePainter oldDelegate) => oldDelegate.items != items;
+  bool shouldRepaint(covariant _FacePainter oldDelegate) =>
+      oldDelegate.items != items;
 }
