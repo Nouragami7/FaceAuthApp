@@ -15,7 +15,7 @@ class EnrollCubit extends Cubit<EnrollState> {
 
   EnrollCubit(this.db) : super(const EnrollState()) {
     _ml = FaceMlService();
-    _desc = DescriptorService();
+    _desc = DescriptorService(size: 32, l2Normalize: true);
     _repo = FaceRecRepository(db: db, ml: _ml, desc: _desc);
   }
 
@@ -131,7 +131,6 @@ class EnrollCubit extends Cubit<EnrollState> {
   }
 
   void setFaces(List<img.Image> imgs) {
-  emit(state.copyWith(faces: List<img.Image>.from(imgs)));
-}
-
+    emit(state.copyWith(faces: List<img.Image>.from(imgs)));
+  }
 }

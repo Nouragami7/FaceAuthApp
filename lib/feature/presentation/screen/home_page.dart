@@ -6,6 +6,10 @@ import '../cubit/user/users_cubit.dart';
 import '../cubit/user/users_state.dart';
 import '../widgets/user_card.dart';
 import '../../../config/route/routes.dart';
+import 'package:image/image.dart' as img;
+import 'package:face_recognition_app/core/service/face_ml/face_ml_service.dart';
+import 'package:face_recognition_app/core/service/descriptor/descriptor_service.dart';
+import 'package:face_recognition_app/feature/data/repositories/face_rec_repository.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -49,6 +53,42 @@ class _HomeView extends StatelessWidget {
                       name: u.name,
                       id: u.id,
                       avatarBytes: u.avatarBytes,
+                      onReenroll: () async {
+                        final res = await Navigator.pushNamed(
+                          context,
+                          AppRoutes.capture,
+                        );
+                        if (!context.mounted) return;
+                        if (res is List<img.Image> && res.length >= 5) {
+                          final db = RepositoryProvider.of<AppDatabase>(
+                            context,
+                          );
+                          final repo = FaceRecRepository(
+                            db: db,
+                            ml: FaceMlService(),
+                            desc: DescriptorService(),
+                          );
+                          await repo.reEnrollUser(
+                            userId: u.id,
+                            faceImages: res,
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Updated photos for ${u.name.isEmpty ? 'User ${u.id}' : u.name}',
+                              ),
+                            ),
+                          );
+                          context.read<UsersCubit>().load();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Capture 5 photos to update'),
+                            ),
+                          );
+                        }
+                      },
                       onEdit: () async {
                         final newName = await showEditNameDialog(
                           context,

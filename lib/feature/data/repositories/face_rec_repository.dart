@@ -25,13 +25,9 @@ class FaceRecRepository {
     required List<img.Image> faceImages,
   }) async {
     if (faceImages.isEmpty) {
-      print('[Repo][Enroll][WARN] empty faceImages');
       return null;
     }
     try {
-      print(
-        '[Repo][Enroll] id=$userId name="$name" images=${faceImages.length}',
-      );
       final upsertedId = await db.insertUser(customId: userId, name: name);
       for (int i = 0; i < faceImages.length; i++) {
         final fi = faceImages[i];
@@ -48,26 +44,19 @@ class FaceRecRepository {
           vectorBytes: bytes,
           l2norm: l2,
         );
-        print('[Repo][Enroll] saved vector index=$i for userId=$upsertedId');
       }
       if (faceImages.isNotEmpty) {
         final last = faceImages.last;
         final landscape =
             (last.height > last.width) ? rotate90Compat(last, times: 1) : last;
-
         final avatarJpg = img.encodeJpg(landscape, quality: 85);
         await db.updateUserAvatarBytes(
           upsertedId,
           Uint8List.fromList(avatarJpg),
         );
-        print('[Repo][Enroll] avatar saved (landscape) for userId=$upsertedId');
       }
-
-      print('[Repo][Enroll] completed for userId=$upsertedId');
       return upsertedId;
-    } catch (e, st) {
-      print('[Repo][Enroll][ERROR] $e');
-      print(st);
+    } catch (_) {
       return null;
     }
   }
@@ -77,10 +66,29 @@ class FaceRecRepository {
     await db.updateUserAvatarBytes(userId, Uint8List.fromList(avatarJpg));
   }
 
+  double _scoreUserTopKMean(
+    Float32List probe,
+    List<Float32List> vecs, {
+    int k = 3,
+  }) {
+    if (vecs.isEmpty) return -1;
+    final sims = <double>[];
+    for (final v in vecs) {
+      sims.add(cosineSimilarity(probe, v));
+    }
+    sims.sort((a, b) => b.compareTo(a));
+    final take = sims.length < k ? sims.length : k;
+    double sum = 0;
+    for (int i = 0; i < take; i++) {
+      sum += sims[i];
+    }
+    return sum / take;
+  }
+
   Future<List<RecognizedFace>> recognizeFromImageBytes(
     Uint8List imageBytes, {
-    double minCosine = 0.75,
-    double margin = 0.07,
+    double minCosine = 0.85,
+    double margin = 0.05,
   }) async {
     final decoded = img.decodeImage(imageBytes);
     if (decoded == null) {
@@ -89,11 +97,14 @@ class FaceRecRepository {
     final faces = await ml.detectFacesFromBytes(imageBytes);
     if (faces.isEmpty) return [];
     final rows = await db.getAllUserVectors();
-    if (rows.isEmpty) {
-      return [];
-    }
+    if (rows.isEmpty) return [];
+
     final Map<int, UserVecs> gallery = {};
+    final expectedDims = desc.size * desc.size;
+
     for (final r in rows) {
+      if (r.vector.dims != expectedDims) continue;
+
       final u8 = r.vector.vector;
       final vec = u8.buffer.asFloat32List(
         u8.offsetInBytes,
@@ -104,39 +115,34 @@ class FaceRecRepository {
           .vecs
           .add(vec);
     }
+
     final results = <RecognizedFace>[];
     for (final f in faces) {
       final crop = ml.cropToFace(decoded, f, padding: 0.2);
       final square = img.copyResizeCropSquare(crop, 256);
       final probe = desc.imageToDescriptor(square);
-      String? bestName;
-      int? bestUserId;
-      double bestScore = -1;
-      final scored = <String, double>{};
+
+      final perUser = <({int id, String name, double score})>[];
       for (final g in gallery.values) {
-        double userBest = -1;
-        for (final v in g.vecs) {
-          final s = cosineSimilarity(probe, v);
-          if (s > userBest) userBest = s;
-        }
-        scored[g.name] = userBest;
-        if (userBest > bestScore) {
-          bestScore = userBest;
-          bestName = g.name;
-          bestUserId = g.userId;
-        }
+        final s = _scoreUserTopKMean(probe, g.vecs, k: 3);
+        perUser.add((id: g.userId, name: g.name, score: s));
       }
-      final sorted =
-          scored.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      final secondBest = (sorted.length >= 2) ? sorted[1].value : -1;
+      perUser.sort((a, b) => b.score.compareTo(a.score));
+      if (perUser.isEmpty) continue;
+
+      final best = perUser.first;
+      final second = perUser.length > 1 ? perUser[1] : null;
+
       final pass =
-          (bestScore >= minCosine) && (bestScore - secondBest >= margin);
-      if (pass && bestName != null && bestUserId != null) {
+          best.score >= minCosine &&
+          (second == null || (best.score - second.score) >= margin);
+
+      if (pass) {
         results.add(
           RecognizedFace(
-            userId: bestUserId,
-            name: bestName,
-            score: bestScore,
+            userId: best.id,
+            name: best.name,
+            score: best.score,
             box: f.boundingBox,
           ),
         );
@@ -148,14 +154,13 @@ class FaceRecRepository {
   Future<List<RecognizedFace>> recognizeFromDecodedAndFaces(
     img.Image decoded,
     List<Face> faces, {
-    double minCosine = 0.88,
-    double margin = 0.08,
+    double minCosine = 0.68,
+    double margin = 0.05,
   }) async {
     if (faces.isEmpty) return [];
     final rows = await db.getAllUserVectors();
-    if (rows.isEmpty) {
-      return [];
-    }
+    if (rows.isEmpty) return [];
+
     final Map<int, UserVecs> gallery = {};
     for (final r in rows) {
       final u8 = r.vector.vector;
@@ -168,45 +173,67 @@ class FaceRecRepository {
           .vecs
           .add(vec);
     }
+
     final results = <RecognizedFace>[];
     for (final f in faces) {
       final crop = ml.cropToFace(decoded, f, padding: 0.2);
       final square = img.copyResizeCropSquare(crop, 256);
       final probe = desc.imageToDescriptor(square);
-      String? bestName;
-      int? bestUserId;
-      double bestScore = -1;
-      final scored = <String, double>{};
+
+      final perUser = <({int id, String name, double score})>[];
       for (final g in gallery.values) {
-        double userBest = -1;
-        for (final v in g.vecs) {
-          final s = cosineSimilarity(probe, v);
-          if (s > userBest) userBest = s;
-        }
-        scored[g.name] = userBest;
-        if (userBest > bestScore) {
-          bestScore = userBest;
-          bestName = g.name;
-          bestUserId = g.userId;
-        }
+        final s = _scoreUserTopKMean(probe, g.vecs, k: 3);
+        perUser.add((id: g.userId, name: g.name, score: s));
       }
-      final sorted =
-          scored.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      final secondBest = (sorted.length >= 2) ? sorted[1].value : -1;
+      perUser.sort((a, b) => b.score.compareTo(a.score));
+      if (perUser.isEmpty) continue;
+
+      final best = perUser.first;
+      final second = perUser.length > 1 ? perUser[1] : null;
+
       final pass =
-          (bestScore >= minCosine) && (bestScore - secondBest >= margin);
-      if (pass && bestName != null && bestUserId != null) {
+          best.score >= minCosine &&
+          (second == null || (best.score - second.score) >= margin);
+
+      if (pass) {
         results.add(
           RecognizedFace(
-            userId: bestUserId,
-            name: bestName,
-            score: bestScore,
+            userId: best.id,
+            name: best.name,
+            score: best.score,
             box: f.boundingBox,
           ),
         );
       }
     }
     return results;
+  }
+
+  Future<void> reEnrollUser({
+    required int userId,
+    required List<img.Image> faceImages,
+  }) async {
+    if (faceImages.isEmpty) return;
+    await db.deleteAllVectorsForUser(userId);
+    for (final fi in faceImages) {
+      final vec = desc.imageToDescriptor(fi);
+      final bytes = desc.float32ListToBytes(vec);
+      double l2 = 0.0;
+      for (final v in vec) {
+        l2 += v * v;
+      }
+      await db.insertVector(
+        userId: userId,
+        dims: vec.length,
+        vectorBytes: bytes,
+        l2norm: math.sqrt(l2),
+      );
+    }
+    final last = faceImages.last;
+    final upright =
+        (last.width > last.height) ? rotate90Compat(last, times: 1) : last;
+    final avatarJpg = img.encodeJpg(upright, quality: 85);
+    await db.updateUserAvatarBytes(userId, Uint8List.fromList(avatarJpg));
   }
 
   Future<void> renameUser(int userId, String newName) =>
