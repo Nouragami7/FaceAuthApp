@@ -8,6 +8,7 @@ class UserCard extends StatelessWidget {
   final Uint8List? avatarBytes;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onReenroll;
 
   const UserCard({
     super.key,
@@ -16,6 +17,7 @@ class UserCard extends StatelessWidget {
     this.avatarBytes,
     required this.onEdit,
     required this.onDelete,
+    required this.onReenroll,
   });
 
   @override
@@ -26,7 +28,7 @@ class UserCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         leading: CircleAvatar(
-          radius: 24,
+          radius: 26,
           backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes!) : null,
           child: avatarBytes == null ? const Icon(Icons.person) : null,
         ),
@@ -38,6 +40,11 @@ class UserCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              tooltip: 'Re-enroll',
+              icon: const Icon(Icons.refresh),
+              onPressed: onReenroll,
+            ),
             IconButton(
               tooltip: 'Edit',
               icon: const Icon(Icons.edit),

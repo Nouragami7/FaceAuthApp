@@ -33,45 +33,116 @@ class _FullscreenCapturePageState extends State<FullscreenCapturePage> {
     super.dispose();
   }
 
-  Future<void> _capture() async {
-    if (!_ready || _busy) return;
-    if (_faces.length >= _target) return;
-    setState(() => _busy = true);
-    try {
-      final cam = _ml.controller;
-      if (cam == null) {
-        setState(() => _busy = false);
-        return;
-      }
-      final pic = await cam.takePicture();
-      final bytes = await pic.readAsBytes();
-      final faces = await _ml.detectFacesFromBytes(bytes);
-      if (faces.isEmpty) {
-        setState(() => _busy = false);
-        return;
-      }
-      final raw = img.decodeImage(bytes);
-      if (raw == null) {
-        setState(() => _busy = false);
-        return;
-      }
-      final baked = img.bakeOrientation(raw);
-      final upright =
-          baked.height > baked.width ? img.copyRotate(baked, 90) : baked;
-      faces.sort((a, b) {
-        final sa = a.boundingBox.width * a.boundingBox.height;
-        final sb = b.boundingBox.width * b.boundingBox.height;
-        return sb.compareTo(sa);
-      });
-      final crop = _ml.cropToFace(upright, faces.first, padding: 0.28);
-      setState(() {
-        _faces.add(crop);
-        _busy = false;
-      });
-    } catch (_) {
+ Future<void> _capture() async {
+  if (!_ready || _busy) return;
+  if (_faces.length >= _target) return;
+  setState(() => _busy = true);
+  try {
+    final cam = _ml.controller;
+    if (cam == null) { setState(() => _busy = false); return; }
+
+    final pic = await cam.takePicture();
+    final bytes = await pic.readAsBytes();
+    final faces = await _ml.detectFacesFromBytes(bytes);
+    if (faces.isEmpty) {
       setState(() => _busy = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No face detected — please face the camera clearly.'), duration: Duration(seconds: 2)),
+        );
+      }
+      return;
     }
+
+    final raw = img.decodeImage(bytes);
+    if (raw == null) { setState(() => _busy = false); return; }
+
+    final baked = img.bakeOrientation(raw);
+    final upright = baked.height > baked.width ? img.copyRotate(baked, 90) : baked;
+
+    faces.sort((a, b) {
+      final sa = a.boundingBox.width * a.boundingBox.height;
+      final sb = b.boundingBox.width * b.boundingBox.height;
+      return sb.compareTo(sa);
+    });
+    final f = faces.first;
+
+    final frameW = upright.width.toDouble();
+    final frameH = upright.height.toDouble();
+    final areaRatio = (f.boundingBox.width * f.boundingBox.height) / (frameW * frameH);
+    final yaw = (f.headEulerAngleY ?? 0).abs();
+    final roll = (f.headEulerAngleZ ?? 0).abs();
+
+    if (areaRatio < 0.18 || yaw > 20 || roll > 20) {
+      setState(() => _busy = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Center your face and move a bit closer.'), duration: Duration(seconds: 2)),
+        );
+      }
+      return;
+    }
+
+    double mean = 0;
+    for (int y = 0; y < upright.height; y++) {
+      for (int x = 0; x < upright.width; x++) {
+        final c = upright.getPixel(x, y);
+        mean += (0.299 * img.getRed(c) + 0.587 * img.getGreen(c) + 0.114 * img.getBlue(c));
+      }
+    }
+    mean /= (upright.width * upright.height);
+    if (mean < 30 || mean > 235) {
+      setState(() => _busy = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Adjust lighting and try again.'), duration: Duration(seconds: 2)),
+        );
+      }
+      return;
+    }
+
+    final crop = _ml.cropToFace(upright, f, padding: 0.28);
+    final sq = img.copyResizeCropSquare(crop, 128);
+    final g = img.grayscale(sq);
+
+    double varLap = 0;
+    final w = g.width, h = g.height;
+    for (int y = 1; y < h - 1; y++) {
+      for (int x = 1; x < w - 1; x++) {
+        final gc = img.getRed(g.getPixel(x, y));
+        final gl = img.getRed(g.getPixel(x - 1, y));
+        final gr = img.getRed(g.getPixel(x + 1, y));
+        final gu = img.getRed(g.getPixel(x, y - 1));
+        final gd = img.getRed(g.getPixel(x, y + 1));
+        final lap = 4 * gc - gl - gr - gu - gd;
+        varLap += lap * lap;
+      }
+    }
+    varLap /= ((w - 2) * (h - 2));
+
+    if (varLap < 120) {
+      setState(() => _busy = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image is blurry — hold still and try again.'), duration: Duration(seconds: 2)),
+        );
+      }
+      return;
+    }
+
+
+
+    setState(() {
+      _faces.add(crop);
+      _busy = false;
+    });
+  } catch (_) {
+    setState(() => _busy = false);
   }
+}
+
+
+
 
   void _done() {
     if (_faces.length < _target) return;
