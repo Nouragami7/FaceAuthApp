@@ -155,7 +155,7 @@ class FaceRecRepository {
     img.Image decoded,
     List<Face> faces, {
     double minCosine = 0.68,
-    double margin = 0.05,
+    double margin = 0.08,
   }) async {
     if (faces.isEmpty) return [];
     final rows = await db.getAllUserVectors();

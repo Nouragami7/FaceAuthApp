@@ -59,7 +59,8 @@ class _LivePreviewState extends State<_LivePreview> {
         );
 
         final isKnown = best != null && best.score >= widget.state.minCosine;
-        final label = isKnown ? best!.name : 'Unknown';
+        if (!isKnown) continue;
+        final label = best!.name;
 
         Rect rect = mapRectCover(
           r: f.boundingBox,
@@ -72,7 +73,6 @@ class _LivePreviewState extends State<_LivePreview> {
 
         final expandX = rect.width * 0.05;
         final expandY = rect.height * 0.10;
-
         rect = Rect.fromLTRB(
           rect.left - expandX,
           rect.top - expandY,
@@ -91,7 +91,7 @@ class _LivePreviewState extends State<_LivePreview> {
             rect: rect,
             label: label,
             labelTop: labelTop,
-            isKnown: isKnown,
+            isKnown: true,
           ),
         );
       }
@@ -104,7 +104,7 @@ class _LivePreviewState extends State<_LivePreview> {
     final hasFaces = faces.isNotEmpty && drawNow.isNotEmpty;
     final keep =
         hasFaces &&
-        DateTime.now().difference(_lastUpdate).inMilliseconds < 3000;
+        DateTime.now().difference(_lastUpdate).inMilliseconds < 4000;
     final itemsToPaint = keep ? _lastDrawItems : const <_DrawItem>[];
 
     return Stack(
